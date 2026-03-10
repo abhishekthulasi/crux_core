@@ -1,3 +1,4 @@
+import 'package:crux_ui/src/rust/api/simple.dart' as rust_api;
 import 'package:crux_ui/src/rust/models.dart';
 import 'package:flutter/material.dart';
 import 'package:signals/signals_flutter.dart';
@@ -78,38 +79,10 @@ class _ChatScreenState extends State<ChatScreen> {
                 itemCount: branch.length,
                 itemBuilder: (context, index) {
                   final turn = branch[index];
-                  final isUser = turn.role == 'user';
 
-                  return Align(
-                    alignment: isUser
-                        ? Alignment.centerRight
-                        : Alignment.centerLeft,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (isUser)
-                          IconButton(
-                            icon: const Icon(
-                              Icons.edit,
-                              size: 16,
-                              color: Colors.grey,
-                            ),
-                            onPressed: () => _startEditing(turn),
-                          ),
-                        Container(
-                          margin: const EdgeInsets.symmetric(
-                            vertical: 4,
-                            horizontal: 8,
-                          ),
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: isUser ? Colors.blue[100] : Colors.grey[300],
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(turn.content),
-                        ),
-                      ],
-                    ),
+                  return BranchingBubble(
+                    turn: turn,
+                    onEdit: () => _startEditing(turn),
                   );
                 },
               );
@@ -147,6 +120,120 @@ class _ChatScreenState extends State<ChatScreen> {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+// Add this at the bottom of chat_screen.dart
+
+class BranchingBubble extends StatefulWidget {
+  final Turn turn;
+  final VoidCallback onEdit;
+
+  const BranchingBubble({super.key, required this.turn, required this.onEdit});
+
+  @override
+  State<BranchingBubble> createState() => _BranchingBubbleState();
+}
+
+class _BranchingBubbleState extends State<BranchingBubble> {
+  List<Turn> _siblings = [];
+  int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSiblings();
+  }
+
+  @override
+  void didUpdateWidget(BranchingBubble oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.turn.id != widget.turn.id) {
+      _loadSiblings();
+    }
+  }
+
+  Future<void> _loadSiblings() async {
+    final siblings = await rust_api.getSiblings(turnId: widget.turn.id);
+    if (!mounted) return;
+    setState(() {
+      _siblings = siblings;
+      _currentIndex = siblings.indexWhere((t) => t.id == widget.turn.id);
+    });
+  }
+
+  void _cycleBranch(int change) {
+    final newIndex = _currentIndex + change;
+    if (newIndex >= 0 && newIndex < _siblings.length) {
+      // Switch the active conversation to the sibling's timeline!
+      chatState.switchBranch(_siblings[newIndex].id);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isUser = widget.turn.role == 'user';
+    final hasSiblings = _siblings.length > 1;
+
+    return Align(
+      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: Column(
+        crossAxisAlignment: isUser
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (isUser)
+                IconButton(
+                  icon: const Icon(Icons.edit, size: 16, color: Colors.grey),
+                  onPressed: widget.onEdit,
+                ),
+              Container(
+                margin: const EdgeInsets.symmetric(vertical: 2, horizontal: 8),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isUser ? Colors.blue[100] : Colors.grey[300],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(widget.turn.content),
+              ),
+            ],
+          ),
+          // Branch Cycling Controls
+          if (hasSiblings)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  InkWell(
+                    onTap: () => _cycleBranch(-1),
+                    child: const Icon(
+                      Icons.chevron_left,
+                      size: 18,
+                      color: Colors.grey,
+                    ),
+                  ),
+                  Text(
+                    '${_currentIndex + 1} / ${_siblings.length}',
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                  InkWell(
+                    onTap: () => _cycleBranch(1),
+                    child: const Icon(
+                      Icons.chevron_right,
+                      size: 18,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );

@@ -64,3 +64,31 @@ pub fn fetch_branch(active_turn_id: String) -> anyhow::Result<Vec<Turn>> {
     let branch = db.get_chat_branch(&active_turn_id).unwrap();
     Ok(branch)
 }
+
+pub fn get_siblings(turn_id: String) -> anyhow::Result<Vec<Turn>> {
+    let db_mutex = DB.get().expect("Database not initialized!");
+    let db = db_mutex.lock().unwrap();
+
+    let siblings = db
+        .get_siblings(&turn_id)
+        .map_err(|e| anyhow::anyhow!("Failed to fetch siblings: {}", e))?;
+    Ok(siblings)
+}
+
+/// Finds the leaf of the selected branch and returns the full history up to that leaf
+pub fn switch_branch(turn_id: String) -> anyhow::Result<Vec<Turn>> {
+    let db_mutex = DB.get().expect("Database not initialized!");
+    let db = db_mutex.lock().unwrap();
+
+    // 1. Find the deepest leaf node of the selected sibling
+    let leaf_id = db
+        .get_latest_leaf(&turn_id)
+        .map_err(|e| anyhow::anyhow!("Failed to find leaf: {}", e))?;
+
+    // 2. Fetch the full chat branch from that leaf upwards
+    let branch = db
+        .get_chat_branch(&leaf_id)
+        .map_err(|e| anyhow::anyhow!("Failed to fetch branch: {}", e))?;
+
+    Ok(branch)
+}

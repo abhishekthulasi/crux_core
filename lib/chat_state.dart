@@ -35,6 +35,15 @@ class ChatState {
     activeBranch.value = branch;
     currentLeafId.value = leafNodeId;
   }
+
+  Future<void> switchBranch(String turnId) async {
+    final newBranch = await rust_api.switchBranch(turnId: turnId);
+
+    activeBranch.value = newBranch;
+    if (newBranch.isNotEmpty) {
+      currentLeafId.value = newBranch.last.id;
+    }
+  }
 }
 
 final chatState = ChatState();
