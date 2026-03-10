@@ -13,9 +13,13 @@ class ChatState {
     await rust_api.initDb(dbPath: path);
   }
 
-  Future<void> sendMessage(String text) async {
+  // Add the optional parentId parameter
+  Future<void> sendMessage(String text, {String? parentId}) async {
+    // Use the provided parentId if it exists, otherwise use the current leaf
+    final targetParent = parentId ?? currentLeafId.value;
+
     final updatedBranch = await rust_api.sendMessage(
-      parentId: currentLeafId.value,
+      parentId: targetParent,
       content: text,
     );
 
